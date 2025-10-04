@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSTR Bio-Digital Twin Prototype</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    body {
+        font-family: 'Segoe UI', sans-serif;
+        background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+        margin: 0;
+        padding: 20px;
+        color: #ecf0f1;
+    }
+    header { text-align: center; margin-bottom: 30px; }
+    header h1 { color: #00cec9; font-size: 2.2em; margin-bottom: 5px; }
+    header p { color: #dfe6e9; font-size: 1.1em; }
+
+    .cstr-container {
+        display: flex;
+        flex-direction: column;
+        gap: 35px;
+        width: 100%;
+    }
+
+    .sensor {
+        width: 100%;
+        background: linear-gradient(135deg, #1f3c50, #2c5364);
+        padding: 30px;
+        border-radius: 15px;
+        text-align: center;
+        box-shadow: 0 6px 25px rgba(0,0,0,0.4);
+    }
+
+    .sensor h2 { color: #00cec9; margin-bottom: 10px; font-size: 1.6em; }
+    .range { font-size: 1.1em; color: #bdc3c7; margin-bottom: 10px; }
+    .value { font-size: 2em; font-weight: bold; margin: 15px 0; }
+    .anticipate { font-size: 1.3em; font-weight: bold; margin: 10px 0; color: #f39c12; }
+
+    .status, .alarm, .corrective, .resilient {
+        margin: 8px 0;
+        padding: 8px 14px;
+        border-radius: 8px;
+        font-weight: bold;
+        display: inline-block;
+        font-size: 1em;
+    }
+
+    .status-normal { background: #27ae60; }
+    .status-warning { background: #f1c40f; }
+    .status-fault { background: #e74c3c; }
+    .status-failure { background: #8e44ad; }
+
+    .alarm-normal { background: #27ae60; color: #fff; }
+    .alarm-warning { background: #f1c40f; color: #fff; }
+    .alarm-fault { background: #e74c3c; color: #fff; }
+    .alarm-failure { background: #8e44ad; color: #fff; }
+
+    .resilient-normal { background: #27ae60; color: #fff; }
+    .resilient-warning { background: #f1c40f; color: #fff; }
+    .resilient-fault { background: #e74c3c; color: #fff; }
+    .resilient-failure { background: #8e44ad; color: #fff; }
+
+    button {
+        padding: 10px 18px;
+        border: none;
+        margin-top: 12px;
+        border-radius: 8px;
+        background: #e67e22;
+        color: white;
+        cursor: pointer;
+        font-size: 1.05em;
+    }
+    button:hover { background: #d35400; }
+
+    canvas { margin-top: 15px; width: 100% !important; height: 350px !important; }
+    footer { text-align: center; margin-top: 30px; font-size: 1em; color: #95a5a6; }
+</style>
+</head>
+<body>
+
+<header>
+    <h1>CSTR Bio-Digital Twin Prototype</h1>
+    <p>Fault-Tolerant Control with Real-Time Monitoring of Temperature, Pressure & Vibration</p>
+</header>
+
+<div class="cstr-container">
+    <!-- Temperature -->
+    <div class="sensor">
+        <h2>Temperature (°C)</h2>
+        <div class="range">Normal: 50 - 120 °C</div>
+        <div class="value" id="tempValue">0</div>
+        <div class="anticipate" id="tempAnticipate">Next: 0</div>
+        <div class="status status-normal" id="tempStatus">Normal</div>
+        <div class="alarm alarm-normal" id="tempAlarm">All Normal</div>
+        <div class="corrective" id="tempCorrective">No action required</div>
+        <div class="resilient resilient-normal" id="tempResilient">Resilient Operation: ✅</div>
+        <button onclick="simulate('temp')">Simulate Temperature</button>
+        <canvas id="tempChart"></canvas>
+    </div>
+
+    <!-- Pressure -->
+    <div class="sensor">
+        <h2>Pressure (bar)</h2>
+        <div class="range">Normal: 2 - 8 bar</div>
+        <div class="value" id="pressureValue">0</div>
+        <div class="anticipate" id="pressureAnticipate">Next: 0</div>
+        <div class="status status-normal" id="pressureStatus">Normal</div>
+        <div class="alarm alarm-normal" id="pressureAlarm">All Normal</div>
+        <div class="corrective" id="pressureCorrective">No action required</div>
+        <div class="resilient resilient-normal" id="pressureResilient">Resilient Operation: ✅</div>
+        <button onclick="simulate('pressure')">Simulate Pressure</button>
+        <canvas id="pressureChart"></canvas>
+    </div>
+
+    <!-- Vibration -->
+    <div class="sensor">
+        <h2>Vibration (Hz)</h2>
+        <div class="range">Normal: 10 - 50 Hz</div>
+        <div class="value" id="vibrationValue">0</div>
+        <div class="anticipate" id="vibrationAnticipate">Next: 0</div>
+        <div class="status status-normal" id="vibrationStatus">Normal</div>
+        <div class="alarm alarm-normal" id="vibrationAlarm">All Normal</div>
+        <div class="corrective" id="vibrationCorrective">No action required</div>
+        <div class="resilient resilient-normal" id="vibrationResilient">Resilient Operation: ✅</div>
+        <button onclick="simulate('vibration')">Simulate Vibration</button>
+        <canvas id="vibrationChart"></canvas>
+    </div>
+</div>
+
+<footer>
+    <p>⚡ Bio-Digital Twin | Fault-Tolerant Control | Federated Learning Prototype ⚡</p>
+</footer>
+
+<script>
+const ranges = {
+    temp: {min:50, max:120, warn:10},
+    pressure: {min:2, max:8, warn:1},
+    vibration: {min:10, max:50, warn:5}
+};
+
+let charts = {};
+let history = { temp: [], pressure: [], vibration: [] };
+
+function initCharts() {
+    charts.temp = new Chart(document.getElementById('tempChart'), createConfig('Temperature (°C)', 'rgba(231, 76, 60, 0.9)'));
+    charts.pressure = new Chart(document.getElementById('pressureChart'), createConfig('Pressure (bar)', 'rgba(52, 152, 219, 0.9)'));
+    charts.vibration = new Chart(document.getElementById('vibrationChart'), createConfig('Vibration (Hz)', 'rgba(46, 204, 113, 0.9)'));
+}
+
+function createConfig(label, color){
+    return {
+        type:'line',
+        data:{ labels:[], datasets:[{ label: label, data:[], borderColor: color, tension:0.3, fill:false }]},
+        options:{
+            responsive:true,
+            plugins:{ legend:{ labels:{ color:"#ecf0f1", font:{ size:14 } } } },
+            scales:{ 
+                x:{ ticks:{ color:"#bdc3c7", font:{ size:12 } } },
+                y:{ ticks:{ color:"#bdc3c7", font:{ size:12 } } }
+            }
+        }
+    };
+}
+
+function simulate(sensor){
+    let value;
+    if(sensor==='temp') value = Math.floor(Math.random()*160);
+    if(sensor==='pressure') value = parseFloat((Math.random()*12).toFixed(1));
+    if(sensor==='vibration') value = Math.floor(Math.random()*70);
+    updateSensor(sensor, value);
+}
+
+function updateSensor(sensor, value){
+    history[sensor].push(value);
+    if(history[sensor].length > 12) history[sensor].shift();
+
+    const valueElem = document.getElementById(sensor+'Value');
+    const anticipateElem = document.getElementById(sensor+'Anticipate');
+    const statusElem = document.getElementById(sensor+'Status');
+    const alarmElem = document.getElementById(sensor+'Alarm');
+    const correctiveElem = document.getElementById(sensor+'Corrective');
+    const resilientElem = document.getElementById(sensor+'Resilient');
+    const r = ranges[sensor];
+
+    valueElem.innerText = value;
+
+    // Anticipate next value using simple linear trend
+    let nextValue = value;
+    if(history[sensor].length >= 2){
+        const len = history[sensor].length;
+        nextValue = Math.round(history[sensor][len-1] + (history[sensor][len-1] - history[sensor][len-2]));
+    }
+    anticipateElem.innerText = "Next: " + nextValue;
+
+    // Status & Alarm
+    let newStatus="Normal", statusClass="status-normal", alarmClass="alarm-normal", alarmText="All Normal",
+        correctiveText="No action required", resilientText="Resilient Operation: ✅", resilientClass="resilient-normal";
+
+    if(value<r.min - r.warn || value>r.max + r.warn){
+        newStatus="System Failure"; statusClass="status-failure";
+        alarmClass="alarm-failure"; alarmText="🚨 Critical System Failure!";
+        correctiveText=getCorrectiveAction(sensor,"failure");
+        resilientText="Resilient Operation: ❌ Compromised"; resilientClass="resilient-failure";
+    } else if(value<r.min || value>r.max){
+        newStatus="Fault Detected"; statusClass="status-fault";
+        alarmClass="alarm-fault"; alarmText="⚠️ Fault Detected!";
+        correctiveText=getCorrectiveAction(sensor,"fault");
+        resilientText="Resilient Operation: ⚠️ Limited"; resilientClass="resilient-fault";
+    } else if((value<r.min+r.warn && value>=r.min) || (value>r.max-r.warn && value<=r.max)){
+        newStatus="Warning"; statusClass="status-warning";
+        alarmClass="alarm-warning"; alarmText="⚠️ Warning!";
+        correctiveText=getCorrectiveAction(sensor,"warning");
+        resilientText="Resilient Operation: ✅"; resilientClass="resilient-warning";
+    }
+
+    statusElem.innerText = newStatus;
+    statusElem.className = "status " + statusClass;
+    alarmElem.innerText = alarmText;
+    alarmElem.className = "alarm " + alarmClass;
+    correctiveElem.innerText = correctiveText;
+    resilientElem.innerText = resilientText;
+    resilientElem.className = "resilient " + resilientClass;
+
+    // Update chart
+    const chart = charts[sensor];
+    chart.data.labels.push(new Date().toLocaleTimeString());
+    chart.data.datasets[0].data.push(value);
+    if(chart.data.labels.length > 12){
+        chart.data.labels.shift();
+        chart.data.datasets[0].data.shift();
+    }
+    chart.update();
+}
+
+function getCorrectiveAction(sensor, level){
+    const actions = {
+        temp: { warning:"Slightly adjust heater or coolant.", fault:"Adjust heater/coolant and alert operator.", failure:"Immediate shutdown, full cooling, emergency alert!" },
+        pressure: { warning:"Slightly adjust pump/feed.", fault:"Open relief valve or adjust pump, notify operator.", failure:"Emergency relief valve, shutdown, alert maintenance!" },
+        vibration: { warning:"Slightly reduce RPM, inspect components.", fault:"Reduce RPM, inspect agitator, notify maintenance.", failure:"Stop motor, inspect shaft/blades, emergency alert!" }
+    };
+    return actions[sensor][level];
+}
+
+setInterval(()=>{ simulate('temp'); simulate('pressure'); simulate('vibration'); },3000);
+window.onload = initCharts;
+</script>
+
+</body>
+</html>
